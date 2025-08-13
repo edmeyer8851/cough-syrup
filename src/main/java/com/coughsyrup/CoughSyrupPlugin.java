@@ -11,10 +11,14 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.callback.ClientThread;
+import net.runelite.api.events.ChatMessage;
+import net.runelite.api.*;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Example"
+		name = "Cough Syrup",
+		description = "Removes player cough spam in public chat during Nex's Choke attack."
 )
 public class CoughSyrupPlugin extends Plugin
 {
@@ -22,32 +26,27 @@ public class CoughSyrupPlugin extends Plugin
 	private Client client;
 
 	@Inject
-	private CoughSyrupConfig config;
+	private ClientThread clientThread;
 
-	@Override
-	protected void startUp() throws Exception
-	{
-		log.info("Example started!");
-	}
-
-	@Override
-	protected void shutDown() throws Exception
-	{
-		log.info("Example stopped!");
-	}
+	private static final String COUGH_TEXT = "*Cough*";
 
 	@Subscribe
-	public void onGameStateChanged(GameStateChanged gameStateChanged)
+	public void onChatMessage(ChatMessage chatMessage)
 	{
-		if (gameStateChanged.getGameState() == GameState.LOGGED_IN)
+		if (chatMessage.getType() != ChatMessageType.PUBLICCHAT)
 		{
-			client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Example says " + config.greeting(), null);
+			return;
+		}
+		final ChatLineBuffer lineBuffer = client.getChatLineMap().get(ChatMessageType.PUBLICCHAT.getType());
+		if (lineBuffer == null)
+		{
+			return;
+		}
+		if (COUGH_TEXT.equals(chatMessage.getMessage()))
+		{
+			lineBuffer.removeMessageNode(chatMessage.getMessageNode());
+			clientThread.invoke(() -> client.runScript(ScriptID.BUILD_CHATBOX));
 		}
 	}
 
-	@Provides
-	CoughSyrupConfig provideConfig(ConfigManager configManager)
-	{
-		return configManager.getConfig(CoughSyrupConfig.class);
-	}
 }
